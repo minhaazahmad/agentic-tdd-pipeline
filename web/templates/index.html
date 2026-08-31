@@ -1,0 +1,2418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Agentic TDD | AI Technical Design Generator</title>
+
+    <style>
+
+        /* =====================================================
+           GLOBAL
+        ===================================================== */
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #050914;
+            --bg-soft: #080f1f;
+            --panel: #0b1427;
+            --panel-light: #101b32;
+            --border: rgba(148, 163, 184, 0.14);
+
+            --text: #f8fafc;
+            --muted: #94a3b8;
+
+            --purple: #8b5cf6;
+            --purple-light: #a78bfa;
+
+            --blue: #3b82f6;
+            --cyan: #22d3ee;
+
+            --green: #34d399;
+            --orange: #f59e0b;
+
+            --shadow:
+                0 25px 80px rgba(0, 0, 0, 0.45);
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            min-height: 100vh;
+            background:
+                radial-gradient(
+                    circle at 75% 10%,
+                    rgba(91, 33, 182, 0.18),
+                    transparent 30%
+                ),
+                radial-gradient(
+                    circle at 20% 30%,
+                    rgba(37, 99, 235, 0.10),
+                    transparent 28%
+                ),
+                var(--bg);
+
+            color: var(--text);
+
+            font-family:
+                Inter,
+                ui-sans-serif,
+                system-ui,
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                sans-serif;
+        }
+
+        button,
+        input {
+            font: inherit;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        /* =====================================================
+           APP LAYOUT
+        ===================================================== */
+
+        .app {
+            min-height: 100vh;
+        }
+
+        /* =====================================================
+           TOP NAVBAR
+        ===================================================== */
+
+        .topbar {
+            height: 76px;
+
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+
+            padding: 0 28px;
+
+            border-bottom: 1px solid var(--border);
+
+            background:
+                rgba(5, 9, 20, 0.82);
+
+            backdrop-filter: blur(18px);
+
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-icon {
+            width: 42px;
+            height: 42px;
+
+            display: grid;
+            place-items: center;
+
+            border-radius: 12px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #6d28d9,
+                    #9333ea
+                );
+
+            box-shadow:
+                0 0 30px rgba(139, 92, 246, 0.35);
+
+            font-size: 21px;
+        }
+
+        .brand-name {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        .brand-name span {
+            color: var(--purple-light);
+        }
+
+        .top-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .top-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+
+            padding: 10px 16px;
+
+            border: 1px solid rgba(139, 92, 246, 0.30);
+
+            border-radius: 10px;
+
+            background:
+                rgba(139, 92, 246, 0.08);
+
+            color: #c4b5fd;
+
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+
+            border-radius: 50%;
+
+            background: var(--green);
+
+            box-shadow:
+                0 0 12px rgba(52, 211, 153, 0.8);
+        }
+
+        /* =====================================================
+           MAIN
+        ===================================================== */
+
+        .layout {
+            display: flex;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* =====================================================
+           SIDEBAR
+        ===================================================== */
+
+        .sidebar {
+            width: 255px;
+            min-height: calc(100vh - 76px);
+
+            padding: 25px 16px;
+
+            border-right: 1px solid var(--border);
+
+            background:
+                linear-gradient(
+                    180deg,
+                    rgba(8, 15, 31, 0.92),
+                    rgba(5, 9, 20, 0.82)
+                );
+
+            position: sticky;
+            top: 76px;
+            align-self: flex-start;
+        }
+
+        .nav-title {
+            padding: 0 13px;
+            margin-bottom: 12px;
+
+            color: #64748b;
+
+            font-size: 11px;
+            font-weight: 700;
+
+            letter-spacing: 1.5px;
+
+            text-transform: uppercase;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 13px;
+
+            width: 100%;
+
+            padding: 13px 14px;
+            margin-bottom: 5px;
+
+            border: 1px solid transparent;
+            border-radius: 11px;
+
+            color: #cbd5e1;
+
+            font-size: 14px;
+            font-weight: 600;
+
+            background: transparent;
+
+            transition: 0.25s;
+        }
+
+        .nav-item:hover {
+            background: rgba(139, 92, 246, 0.08);
+            color: white;
+        }
+
+        .nav-item.active {
+            background:
+                linear-gradient(
+                    90deg,
+                    rgba(91, 33, 182, 0.45),
+                    rgba(59, 130, 246, 0.12)
+                );
+
+            border-color:
+                rgba(139, 92, 246, 0.25);
+
+            color: white;
+        }
+
+        .nav-icon {
+            width: 25px;
+            text-align: center;
+            font-size: 18px;
+        }
+
+        .sidebar-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 25px 12px;
+        }
+
+        /* =====================================================
+           AGENTS
+        ===================================================== */
+
+        .agent-title {
+            padding: 0 13px;
+            margin-bottom: 14px;
+
+            color: var(--purple-light);
+
+            font-size: 11px;
+            font-weight: 700;
+
+            letter-spacing: 1.4px;
+
+            text-transform: uppercase;
+        }
+
+        .agent {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+
+            padding: 11px 12px;
+
+            margin-bottom: 7px;
+
+            border-radius: 12px;
+
+            transition: 0.25s;
+        }
+
+        .agent:hover {
+            background: rgba(255,255,255,0.035);
+        }
+
+        .agent-icon {
+            width: 38px;
+            height: 38px;
+
+            display: grid;
+            place-items: center;
+
+            border-radius: 10px;
+
+            font-size: 17px;
+        }
+
+        .agent-icon.scanner {
+            background: rgba(59,130,246,.13);
+            border: 1px solid rgba(59,130,246,.25);
+        }
+
+        .agent-icon.architect {
+            background: rgba(139,92,246,.13);
+            border: 1px solid rgba(139,92,246,.25);
+        }
+
+        .agent-icon.manager {
+            background: rgba(245,158,11,.13);
+            border: 1px solid rgba(245,158,11,.25);
+        }
+
+        .agent-name {
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .agent-desc {
+            margin-top: 3px;
+
+            color: var(--muted);
+
+            font-size: 11px;
+        }
+
+        .ai-card {
+            margin: 25px 12px 0;
+
+            padding: 18px;
+
+            border-radius: 15px;
+
+            border: 1px solid rgba(139,92,246,.20);
+
+            background:
+                radial-gradient(
+                    circle at 70% 10%,
+                    rgba(139,92,246,.16),
+                    transparent 45%
+                ),
+                rgba(139,92,246,.05);
+        }
+
+        .ai-card-icon {
+            font-size: 28px;
+            margin-bottom: 12px;
+        }
+
+        .ai-card h4 {
+            margin-bottom: 7px;
+            font-size: 13px;
+        }
+
+        .ai-card p {
+            color: var(--muted);
+            font-size: 11px;
+            line-height: 1.7;
+        }
+
+        /* =====================================================
+           CONTENT
+        ===================================================== */
+
+        .content {
+            flex: 1;
+            padding: 28px;
+            min-width: 0;
+        }
+
+        /* =====================================================
+           HERO
+        ===================================================== */
+
+        .hero {
+            min-height: 350px;
+
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+
+            text-align: center;
+
+            padding: 45px 25px;
+
+            border-radius: 24px;
+
+            border: 1px solid var(--border);
+
+            position: relative;
+            overflow: hidden;
+
+            background:
+                radial-gradient(
+                    circle at 0% 60%,
+                    rgba(126, 34, 206, .27),
+                    transparent 38%
+                ),
+                radial-gradient(
+                    circle at 100% 60%,
+                    rgba(37, 99, 235, .22),
+                    transparent 38%
+                ),
+                linear-gradient(
+                    135deg,
+                    #110b29,
+                    #070d20 55%,
+                    #07152d
+                );
+
+            box-shadow: var(--shadow);
+        }
+
+        .hero::before {
+            content: "";
+
+            position: absolute;
+
+            width: 600px;
+            height: 600px;
+
+            border-radius: 50%;
+
+            border: 1px solid rgba(139,92,246,.10);
+
+            left: -260px;
+            top: -180px;
+        }
+
+        .hero::after {
+            content: "";
+
+            position: absolute;
+
+            width: 600px;
+            height: 600px;
+
+            border-radius: 50%;
+
+            border: 1px solid rgba(59,130,246,.10);
+
+            right: -260px;
+            top: -180px;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero-label {
+            display: inline-flex;
+            align-items: center;
+
+            padding: 8px 15px;
+
+            margin-bottom: 20px;
+
+            border-radius: 999px;
+
+            border: 1px solid rgba(139,92,246,.35);
+
+            background: rgba(139,92,246,.07);
+
+            color: #c4b5fd;
+
+            font-size: 11px;
+            font-weight: 700;
+
+            letter-spacing: 1px;
+        }
+
+        .hero h1 {
+            max-width: 800px;
+
+            font-size: clamp(42px, 5vw, 67px);
+
+            line-height: 1.02;
+
+            letter-spacing: -3px;
+
+            font-weight: 850;
+        }
+
+        .gradient-text {
+            background:
+                linear-gradient(
+                    90deg,
+                    #a78bfa,
+                    #8b5cf6,
+                    #60a5fa
+                );
+
+            -webkit-background-clip: text;
+            background-clip: text;
+
+            color: transparent;
+        }
+
+        .hero-subtitle {
+            max-width: 780px;
+
+            margin: 20px auto 28px;
+
+            color: #a8b5ca;
+
+            font-size: 15px;
+
+            line-height: 1.7;
+        }
+
+        .hero-features {
+            display: flex;
+            justify-content: center;
+            gap: 45px;
+
+            flex-wrap: wrap;
+        }
+
+        .hero-feature {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+
+            text-align: left;
+        }
+
+        .hero-feature-icon {
+            width: 38px;
+            height: 38px;
+
+            display: grid;
+            place-items: center;
+
+            border-radius: 50%;
+
+            background: rgba(255,255,255,.05);
+
+            border: 1px solid rgba(255,255,255,.08);
+        }
+
+        .hero-feature strong {
+            display: block;
+            font-size: 12px;
+        }
+
+        .hero-feature span {
+            display: block;
+
+            margin-top: 3px;
+
+            color: #718096;
+
+            font-size: 11px;
+        }
+
+        /* =====================================================
+           INPUT SECTION
+        ===================================================== */
+
+        .input-panel {
+            margin-top: 20px;
+
+            padding: 28px;
+
+            border-radius: 20px;
+
+            border: 1px solid var(--border);
+
+            background:
+                linear-gradient(
+                    145deg,
+                    rgba(15, 27, 50, .95),
+                    rgba(7, 14, 28, .96)
+                );
+
+            box-shadow: var(--shadow);
+        }
+
+        .section-heading {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+
+            gap: 20px;
+
+            margin-bottom: 22px;
+        }
+
+        .section-heading h2 {
+            font-size: 21px;
+            letter-spacing: -0.5px;
+        }
+
+        .section-heading p {
+            margin-top: 6px;
+
+            color: var(--muted);
+
+            font-size: 13px;
+        }
+
+        .recommended {
+            padding: 8px 12px;
+
+            border-radius: 9px;
+
+            background: rgba(139,92,246,.08);
+
+            border: 1px solid rgba(139,92,246,.25);
+
+            color: #c4b5fd;
+
+            font-size: 11px;
+            font-weight: 700;
+
+            white-space: nowrap;
+        }
+
+        /* =====================================================
+           METHOD CARDS
+        ===================================================== */
+
+        .methods {
+            display: grid;
+
+            grid-template-columns:
+                repeat(3, minmax(0, 1fr));
+
+            gap: 16px;
+        }
+
+        .method {
+            min-height: 315px;
+
+            padding: 22px;
+
+            border-radius: 16px;
+
+            border: 1px solid var(--border);
+
+            background:
+                linear-gradient(
+                    145deg,
+                    rgba(16, 27, 50, .8),
+                    rgba(8, 15, 29, .9)
+                );
+
+            position: relative;
+
+            transition:
+                transform .25s,
+                border-color .25s,
+                box-shadow .25s;
+        }
+
+        .method:hover {
+            transform: translateY(-3px);
+
+            border-color:
+                rgba(139,92,246,.30);
+
+            box-shadow:
+                0 15px 45px rgba(0,0,0,.25);
+        }
+
+        .method.recommended-card {
+            border-color:
+                rgba(139,92,246,.65);
+
+            background:
+                radial-gradient(
+                    circle at 50% 0%,
+                    rgba(139,92,246,.11),
+                    transparent 55%
+                ),
+                rgba(9,16,32,.94);
+
+            box-shadow:
+                0 0 35px rgba(139,92,246,.08);
+        }
+
+        .card-tag {
+            position: absolute;
+
+            top: 13px;
+            right: 13px;
+
+            padding: 5px 8px;
+
+            border-radius: 6px;
+
+            color: #c4b5fd;
+
+            background: rgba(139,92,246,.12);
+
+            font-size: 9px;
+            font-weight: 800;
+
+            letter-spacing: .5px;
+        }
+
+        .method-icon {
+            width: 52px;
+            height: 52px;
+
+            display: grid;
+            place-items: center;
+
+            margin-bottom: 16px;
+
+            border-radius: 15px;
+
+            font-size: 23px;
+        }
+
+        .zip-icon {
+            background: rgba(139,92,246,.15);
+            border: 1px solid rgba(139,92,246,.25);
+        }
+
+        .file-icon {
+            background: rgba(59,130,246,.12);
+            border: 1px solid rgba(59,130,246,.22);
+        }
+
+        .paste-icon {
+            background: rgba(52,211,153,.10);
+            border: 1px solid rgba(52,211,153,.20);
+        }
+
+        .method h3 {
+            font-size: 17px;
+            margin-bottom: 6px;
+        }
+
+        .method-description {
+            color: var(--muted);
+
+            font-size: 12px;
+
+            line-height: 1.55;
+
+            min-height: 38px;
+        }
+
+        .checks {
+            list-style: none;
+
+            margin: 18px 0 20px;
+        }
+
+        .checks li {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+
+            margin-bottom: 9px;
+
+            color: #cbd5e1;
+
+            font-size: 11px;
+        }
+
+        .check {
+            width: 17px;
+            height: 17px;
+
+            display: grid;
+            place-items: center;
+
+            border-radius: 50%;
+
+            background: rgba(139,92,246,.15);
+
+            color: #a78bfa;
+
+            font-size: 9px;
+        }
+
+        .method-button {
+            width: 100%;
+
+            height: 46px;
+
+            border-radius: 10px;
+
+            font-weight: 700;
+
+            border: 1px solid rgba(255,255,255,.1);
+
+            color: white;
+
+            background:
+                rgba(255,255,255,.03);
+
+            transition: .2s;
+        }
+
+        .method-button:hover:not(:disabled) {
+            transform: translateY(-1px);
+        }
+
+        .zip-button {
+            border: none;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #7c3aed,
+                    #9333ea,
+                    #6366f1
+                );
+
+            box-shadow:
+                0 8px 25px rgba(124,58,237,.25);
+        }
+
+        .zip-button:hover:not(:disabled) {
+            box-shadow:
+                0 12px 35px rgba(124,58,237,.40);
+        }
+
+        .file-button {
+            color: #60a5fa;
+            border-color: rgba(59,130,246,.5);
+        }
+
+        .paste-button {
+            color: #6ee7b7;
+            border-color: rgba(52,211,153,.35);
+        }
+
+        .method-note {
+            margin-top: 10px;
+
+            text-align: center;
+
+            color: #64748b;
+
+            font-size: 10px;
+        }
+
+        /* =====================================================
+           UPLOAD DROP ZONE
+        ===================================================== */
+
+        .upload-zone {
+            display: none;
+
+            margin-top: 18px;
+
+            padding: 30px;
+
+            border: 1px dashed rgba(139,92,246,.45);
+
+            border-radius: 14px;
+
+            text-align: center;
+
+            background:
+                rgba(139,92,246,.035);
+        }
+
+        .upload-zone.active {
+            display: block;
+            animation: fadeIn .25s ease;
+        }
+
+        .upload-zone.dragover {
+            background: rgba(139,92,246,.10);
+            border-color: #a78bfa;
+        }
+
+        .upload-icon {
+            font-size: 38px;
+            margin-bottom: 10px;
+        }
+
+        .upload-zone h3 {
+            font-size: 15px;
+        }
+
+        .upload-zone p {
+            margin-top: 5px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .choose-button {
+            margin-top: 18px;
+
+            padding: 12px 22px;
+
+            border: none;
+            border-radius: 9px;
+
+            color: white;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #7c3aed,
+                    #9333ea
+                );
+
+            font-weight: 700;
+        }
+
+        .selected-file {
+            display: none;
+
+            align-items: center;
+            justify-content: space-between;
+
+            gap: 15px;
+
+            margin-top: 16px;
+
+            padding: 14px 16px;
+
+            border-radius: 10px;
+
+            background: rgba(52,211,153,.06);
+
+            border: 1px solid rgba(52,211,153,.20);
+        }
+
+        .selected-file.show {
+            display: flex;
+        }
+
+        .file-name {
+            color: #d1fae5;
+            font-size: 12px;
+            font-weight: 600;
+
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .remove-file {
+            border: none;
+            background: transparent;
+            color: #94a3b8;
+            font-size: 16px;
+        }
+
+        /* =====================================================
+           GENERATE BUTTON
+        ===================================================== */
+
+        .generate-container {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .generate-container.show {
+            display: block;
+            animation: fadeIn .25s ease;
+        }
+
+        .generate-button {
+            width: 100%;
+            height: 55px;
+
+            border: none;
+            border-radius: 12px;
+
+            color: white;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #6d28d9,
+                    #9333ea,
+                    #4f46e5
+                );
+
+            font-size: 14px;
+            font-weight: 800;
+
+            letter-spacing: .2px;
+
+            box-shadow:
+                0 12px 35px rgba(124,58,237,.25);
+
+            transition: .25s;
+        }
+
+        .generate-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+
+            box-shadow:
+                0 16px 45px rgba(124,58,237,.40);
+        }
+
+        .generate-button:disabled {
+            opacity: .7;
+            cursor: wait;
+        }
+
+        /* =====================================================
+           PROGRESS
+        ===================================================== */
+
+        .progress-panel {
+            display: none;
+
+            margin-top: 18px;
+
+            padding: 20px;
+
+            border-radius: 13px;
+
+            border: 1px solid rgba(59,130,246,.18);
+
+            background: rgba(59,130,246,.04);
+        }
+
+        .progress-panel.show {
+            display: block;
+        }
+
+        .progress-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+
+            margin-bottom: 10px;
+        }
+
+        .progress-label {
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .progress-status {
+            color: #60a5fa;
+            font-size: 11px;
+        }
+
+        .progress-track {
+            height: 5px;
+
+            overflow: hidden;
+
+            border-radius: 999px;
+
+            background: rgba(255,255,255,.07);
+        }
+
+        .progress-bar {
+            width: 5%;
+            height: 100%;
+
+            border-radius: inherit;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #7c3aed,
+                    #3b82f6,
+                    #22d3ee
+                );
+
+            transition: width 1s ease;
+        }
+
+        /* =====================================================
+           RESULT
+        ===================================================== */
+
+        .result {
+            display: none;
+
+            margin-top: 18px;
+
+            padding: 18px;
+
+            border-radius: 13px;
+
+            border: 1px solid rgba(52,211,153,.25);
+
+            background: rgba(52,211,153,.05);
+        }
+
+        .result.show {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+        }
+
+        .result-title {
+            color: #6ee7b7;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .result-text {
+            margin-top: 4px;
+            color: #94a3b8;
+            font-size: 11px;
+        }
+
+        .download-button {
+            padding: 11px 16px;
+
+            border: none;
+            border-radius: 9px;
+
+            color: white;
+
+            background: #059669;
+
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        /* =====================================================
+           INFO BAR
+        ===================================================== */
+
+        .info-bar {
+            display: grid;
+
+            grid-template-columns:
+                repeat(4, 1fr);
+
+            margin-top: 20px;
+
+            border: 1px solid var(--border);
+
+            border-radius: 17px;
+
+            overflow: hidden;
+
+            background:
+                rgba(9, 17, 32, .90);
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 13px;
+
+            padding: 19px;
+
+            border-right: 1px solid var(--border);
+        }
+
+        .info-item:last-child {
+            border-right: none;
+        }
+
+        .info-icon {
+            width: 38px;
+            height: 38px;
+
+            flex-shrink: 0;
+
+            display: grid;
+            place-items: center;
+
+            border-radius: 10px;
+
+            background: rgba(255,255,255,.04);
+
+            font-size: 17px;
+        }
+
+        .info-item strong {
+            display: block;
+            font-size: 12px;
+        }
+
+        .info-item span {
+            display: block;
+
+            margin-top: 3px;
+
+            color: #64748b;
+
+            font-size: 10px;
+
+            line-height: 1.4;
+        }
+
+        /* =====================================================
+           TOAST
+        ===================================================== */
+
+        .toast {
+            position: fixed;
+
+            right: 25px;
+            bottom: 25px;
+
+            max-width: 380px;
+
+            padding: 15px 18px;
+
+            border-radius: 11px;
+
+            background: #101827;
+
+            border: 1px solid rgba(239,68,68,.25);
+
+            box-shadow: var(--shadow);
+
+            color: #f8fafc;
+
+            font-size: 12px;
+
+            transform: translateY(120px);
+
+            opacity: 0;
+
+            transition: .3s;
+
+            z-index: 999;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* =====================================================
+           ANIMATION
+        ===================================================== */
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .nav-item { cursor: pointer; user-select: none; }
+        .modal-backdrop {
+            position: fixed; inset: 0; display: none; align-items: center;
+            justify-content: center; padding: 20px; z-index: 2000;
+            background: rgba(2,6,18,.78); backdrop-filter: blur(12px);
+        }
+        .modal-backdrop.show { display: flex; animation: fadeIn .18s ease; }
+        .modal-card {
+            width: min(760px,100%); max-height: 90vh; overflow: auto;
+            padding: 26px; border: 1px solid rgba(139,92,246,.30);
+            border-radius: 20px;
+            background: radial-gradient(circle at 85% 0%,rgba(139,92,246,.13),transparent 38%),linear-gradient(145deg,#101a31,#070d1d);
+            box-shadow: 0 30px 100px rgba(0,0,0,.55);
+        }
+        .compact-modal { width: min(600px,100%); }
+        .modal-header { display:flex; justify-content:space-between; gap:20px; margin-bottom:18px; }
+        .modal-kicker { color:#a78bfa; font-size:10px; font-weight:800; letter-spacing:1.4px; margin-bottom:7px; }
+        .modal-header h3 { font-size:22px; }
+        .modal-header p { margin-top:6px; color:var(--muted); font-size:12px; }
+        .modal-close {
+            width:36px; height:36px; flex-shrink:0; border:1px solid var(--border);
+            border-radius:9px; color:#cbd5e1; background:rgba(255,255,255,.04);
+        }
+        .modal-close:hover { background:rgba(139,92,246,.12); color:white; }
+        .modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+        .modal-grid label span { display:block; margin-bottom:7px; color:#cbd5e1; font-size:11px; font-weight:700; }
+        .modal-grid input,.modal-grid select {
+            width:100%; height:42px; padding:0 12px; border:1px solid rgba(148,163,184,.18);
+            border-radius:9px; outline:none; color:white; background:#091226;
+        }
+        #pasteTextarea {
+            width:100%; min-height:310px; resize:vertical; padding:15px;
+            border:1px solid rgba(148,163,184,.18); border-radius:12px; outline:none;
+            color:#dbeafe; background:#050b18; font-family:Consolas,monospace;
+            font-size:12px; line-height:1.65;
+        }
+        .modal-grid input:focus,.modal-grid select:focus,#pasteTextarea:focus {
+            border-color:rgba(139,92,246,.6); box-shadow:0 0 0 3px rgba(139,92,246,.08);
+        }
+        .modal-footer { display:flex; align-items:center; justify-content:space-between; gap:15px; margin-top:14px; }
+        #pasteCharCount { color:#64748b; font-size:11px; }
+        .info-modal-body { color:#aebbd0; font-size:13px; line-height:1.75; }
+        .info-modal-body h4 { margin:16px 0 6px; color:white; }
+        .history-entry { display:flex; justify-content:space-between; gap:15px; padding:13px 0; border-bottom:1px solid var(--border); }
+        .history-entry strong { display:block; color:#e2e8f0; font-size:12px; }
+        .history-entry span { display:block; margin-top:4px; color:#64748b; font-size:10px; }
+        .history-empty { padding:25px 5px; text-align:center; color:#64748b; }
+        @media (max-width:600px) {
+            .modal-grid { grid-template-columns:1fr; }
+            .modal-footer { flex-direction:column; align-items:stretch; }
+        }
+
+        /* =====================================================
+           RESPONSIVE
+        ===================================================== */
+
+        @media (max-width: 1100px) {
+
+            .sidebar {
+                width: 210px;
+            }
+
+            .methods {
+                grid-template-columns:
+                    repeat(2, 1fr);
+            }
+
+            .method:last-child {
+                grid-column: 1 / -1;
+            }
+
+            .info-bar {
+                grid-template-columns:
+                    repeat(2, 1fr);
+            }
+
+            .info-item:nth-child(2) {
+                border-right: none;
+            }
+
+            .info-item:nth-child(-n+2) {
+                border-bottom: 1px solid var(--border);
+            }
+        }
+
+        @media (max-width: 800px) {
+
+            .topbar {
+                padding: 0 16px;
+            }
+
+            .top-badge {
+                display: none;
+            }
+
+            .sidebar {
+                display: none;
+            }
+
+            .content {
+                padding: 15px;
+            }
+
+            .hero {
+                min-height: 390px;
+                padding: 35px 18px;
+            }
+
+            .hero h1 {
+                font-size: 43px;
+                letter-spacing: -2px;
+            }
+
+            .hero-features {
+                gap: 18px;
+            }
+
+            .methods {
+                grid-template-columns: 1fr;
+            }
+
+            .method:last-child {
+                grid-column: auto;
+            }
+
+            .info-bar {
+                grid-template-columns: 1fr;
+            }
+
+            .info-item {
+                border-right: none !important;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .info-item:last-child {
+                border-bottom: none;
+            }
+
+            .section-heading {
+                flex-direction: column;
+            }
+        }
+
+        @media (max-width: 500px) {
+
+            .brand-name {
+                font-size: 18px;
+            }
+
+            .brand-icon {
+                width: 36px;
+                height: 36px;
+            }
+
+            .hero h1 {
+                font-size: 37px;
+            }
+
+            .hero-subtitle {
+                font-size: 13px;
+            }
+
+            .input-panel {
+                padding: 18px;
+            }
+
+            .result.show {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+
+    </style>
+</head>
+
+<body>
+
+<div class="app">
+
+    <!-- =====================================================
+         TOP BAR
+    ====================================================== -->
+
+    <header class="topbar">
+
+        <div class="brand">
+
+            <div class="brand-icon">
+                ◈
+            </div>
+
+            <div class="brand-name">
+                Agentic <span>TDD</span>
+            </div>
+
+        </div>
+
+
+        <div class="top-actions">
+
+            <div class="top-badge">
+                <span>✦</span>
+                Powered by AI Agents
+            </div>
+
+            <div class="top-badge">
+                <span class="status-dot"></span>
+                Pipeline Ready
+            </div>
+
+        </div>
+
+    </header>
+
+
+    <!-- =====================================================
+         MAIN LAYOUT
+    ====================================================== -->
+
+    <div class="layout">
+
+
+        <!-- =================================================
+             SIDEBAR
+        ================================================== -->
+
+        <aside class="sidebar">
+
+            <div class="nav-title">
+                Workspace
+            </div>
+
+            <div class="nav-item active">
+                <span class="nav-icon">⌂</span>
+                Home
+            </div>
+
+            <div class="nav-item">
+                <span class="nav-icon">◷</span>
+                History
+            </div>
+
+            <div class="nav-item">
+                <span class="nav-icon">✧</span>
+                Examples
+            </div>
+
+            <div class="nav-item">
+                <span class="nav-icon">▤</span>
+                Documentation
+            </div>
+
+            <div class="nav-item">
+                <span class="nav-icon">⚙</span>
+                Settings
+            </div>
+
+
+            <div class="sidebar-divider"></div>
+
+
+            <div class="agent-title">
+                Pipeline Agents
+            </div>
+
+
+            <div class="agent">
+
+                <div class="agent-icon scanner">
+                    ◉
+                </div>
+
+                <div>
+                    <div class="agent-name">
+                        Scanner Agent
+                    </div>
+
+                    <div class="agent-desc">
+                        Code Analysis
+                    </div>
+                </div>
+
+            </div>
+
+
+            <div class="agent">
+
+                <div class="agent-icon architect">
+                    ✣
+                </div>
+
+                <div>
+                    <div class="agent-name">
+                        Architect Agent
+                    </div>
+
+                    <div class="agent-desc">
+                        AI Design
+                    </div>
+                </div>
+
+            </div>
+
+
+            <div class="agent">
+
+                <div class="agent-icon manager">
+                    ▣
+                </div>
+
+                <div>
+                    <div class="agent-name">
+                        Manager Agent
+                    </div>
+
+                    <div class="agent-desc">
+                        TDD Generation
+                    </div>
+                </div>
+
+            </div>
+
+
+            <div class="ai-card">
+
+                <div class="ai-card-icon">
+                    ✦
+                </div>
+
+                <h4>
+                    AI-Powered Pipeline
+                </h4>
+
+                <p>
+                    Semantic retrieval, RAG and
+                    multi-agent architecture for
+                    automated technical design
+                    generation.
+                </p>
+
+            </div>
+
+        </aside>
+
+
+        <!-- =================================================
+             CONTENT
+        ================================================== -->
+
+        <main class="content">
+
+
+            <!-- =============================================
+                 HERO
+            ============================================== -->
+
+            <section class="hero">
+
+                <div class="hero-content">
+
+                    <div class="hero-label">
+                        AI-POWERED TECHNICAL DESIGN GENERATOR
+                    </div>
+
+                    <h1>
+                        Generate Technical
+                        <br>
+                        <span class="gradient-text">
+                            Design Documents
+                        </span>
+                    </h1>
+
+                    <p class="hero-subtitle">
+
+                        Analyze your source code using semantic
+                        retrieval, RAG and an AI Architect Agent
+                        to automatically generate a structured,
+                        evidence-based Technical Design Document.
+
+                    </p>
+
+
+                    <div class="hero-features">
+
+                        <div class="hero-feature">
+
+                            <div class="hero-feature-icon">
+                                ◉
+                            </div>
+
+                            <div>
+                                <strong>
+                                    Smart Code Analysis
+                                </strong>
+
+                                <span>
+                                    Semantic understanding
+                                </span>
+                            </div>
+
+                        </div>
+
+
+                        <div class="hero-feature">
+
+                            <div class="hero-feature-icon">
+                                ✣
+                            </div>
+
+                            <div>
+                                <strong>
+                                    AI-Powered Architecture
+                                </strong>
+
+                                <span>
+                                    Intelligent design generation
+                                </span>
+                            </div>
+
+                        </div>
+
+
+                        <div class="hero-feature">
+
+                            <div class="hero-feature-icon">
+                                ◇
+                            </div>
+
+                            <div>
+                                <strong>
+                                    Structured Output
+                                </strong>
+
+                                <span>
+                                    Professional TDD format
+                                </span>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- =============================================
+                 INPUT PANEL
+            ============================================== -->
+
+            <section class="input-panel">
+
+
+                <div class="section-heading">
+
+                    <div>
+
+                        <h2>
+                            Choose Input Method
+                        </h2>
+
+                        <p>
+                            Select how you want to provide
+                            your source code for analysis.
+                        </p>
+
+                    </div>
+
+                    <div class="recommended">
+                        ✦ Recommended
+                    </div>
+
+                </div>
+
+
+                <!-- =========================================
+                     METHODS
+                ========================================== -->
+
+                <div class="methods">
+
+
+                    <!-- PROJECT ZIP -->
+
+                    <div class="method recommended-card">
+
+                        <div class="card-tag">
+                            RECOMMENDED
+                        </div>
+
+                        <div class="method-icon zip-icon">
+                            📦
+                        </div>
+
+                        <h3>
+                            Project ZIP
+                        </h3>
+
+                        <p class="method-description">
+                            Upload a complete software project
+                            as a ZIP file for multi-file analysis.
+                        </p>
+
+                        <ul class="checks">
+
+                            <li>
+                                <span class="check">✓</span>
+                                Best for complete projects
+                            </li>
+
+                            <li>
+                                <span class="check">✓</span>
+                                Preserves file structure
+                            </li>
+
+                            <li>
+                                <span class="check">✓</span>
+                                Multi-file semantic analysis
+                            </li>
+
+                        </ul>
+
+                        <button
+                            type="button"
+                            class="method-button zip-button"
+                            id="zipButton"
+                        >
+                            ⇧ &nbsp; Choose ZIP File
+                        </button>
+
+                        <div class="method-note">
+                            Supports .zip project archives
+                        </div>
+
+                    </div>
+
+
+                    <!-- SINGLE FILE -->
+
+                    <div class="method">
+
+                        <div class="method-icon file-icon">
+                            📄
+                        </div>
+
+                        <h3>
+                            Single File
+                        </h3>
+
+                        <p class="method-description">
+                            Upload one source-code file
+                            for focused analysis.
+                        </p>
+
+                        <ul class="checks">
+
+                            <li>
+                                <span class="check">✓</span>
+                                Quick analysis
+                            </li>
+
+                            <li>
+                                <span class="check">✓</span>
+                                Single-file processing
+                            </li>
+
+                            <li>
+                                <span class="check">✓</span>
+                                Multiple formats
+                            </li>
+
+                        </ul>
+
+                        <button
+                            type="button"
+                            class="method-button file-button"
+                            id="singleFileButton"
+                        >
+                            ◇ &nbsp; Choose Source File
+                        </button>
+
+                        <div class="method-note">
+                            Python, JavaScript, TypeScript, Java, C/C++, C#, Dart, Kotlin, Swift
+                        </div>
+
+                    </div>
+
+
+                    <!-- PASTE CODE -->
+
+                    <div class="method">
+
+                        <div class="method-icon paste-icon">
+                            &lt;/&gt;
+                        </div>
+
+                        <h3>
+                            Paste Code
+                        </h3>
+
+                        <p class="method-description">
+                            Paste source code directly into
+                            the analyzer.
+                        </p>
+
+                        <ul class="checks">
+
+                            <li>
+                                <span class="check">✓</span>
+                                Fastest input
+                            </li>
+
+                            <li>
+                                <span class="check">✓</span>
+                                No upload required
+                            </li>
+
+                            <li>
+                                <span class="check">✓</span>
+                                Direct code analysis
+                            </li>
+
+                        </ul>
+
+                        <button
+                            type="button"
+                            class="method-button paste-button"
+                            id="pasteCodeButton"
+                        >
+                            &lt;/&gt; &nbsp; Paste Source Code
+                        </button>
+
+                        <div class="method-note">
+                            Paste code directly and generate a TDD
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =========================================
+                     UPLOAD ZONE
+                ========================================== -->
+
+                <input type="file" id="singleFileInput"
+                       accept=".py,.js,.ts,.java,.cpp,.c,.cs,.dart,.kt,.swift" hidden>
+
+                <div class="modal-backdrop" id="pasteModal">
+                    <div class="modal-card">
+                        <div class="modal-header">
+                            <div>
+                                <div class="modal-kicker">DIRECT CODE ANALYSIS</div>
+                                <h3>Paste Source Code</h3>
+                                <p>Paste code directly and send it through the existing TDD pipeline.</p>
+                            </div>
+                            <button type="button" class="modal-close" id="closePasteModal">✕</button>
+                        </div>
+                        <div class="modal-grid">
+                            <label><span>Language</span>
+                                <select id="pasteLanguage">
+                                    <option value="py">Python</option>
+                                    <option value="js">JavaScript</option>
+                                    <option value="ts">TypeScript</option>
+                                    <option value="java">Java</option>
+                                    <option value="cpp">C++</option>
+                                    <option value="c">C</option>
+                                    <option value="cs">C#</option>
+                                    <option value="dart">Dart</option>
+                                    <option value="kt">Kotlin</option>
+                                    <option value="swift">Swift</option>
+                                </select>
+                            </label>
+                            <label><span>File name</span>
+                                <input id="pasteFileName" value="source.py">
+                            </label>
+                        </div>
+                        <textarea id="pasteTextarea" placeholder="Paste your source code here..."></textarea>
+                        <div class="modal-footer">
+                            <span id="pasteCharCount">0 characters</span>
+                            <button type="button" class="choose-button" id="usePastedCode">✦ Use This Code</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-backdrop" id="infoModal">
+                    <div class="modal-card compact-modal">
+                        <div class="modal-header">
+                            <div>
+                                <div class="modal-kicker" id="infoModalKicker">AGENTIC TDD</div>
+                                <h3 id="infoModalTitle">Workspace</h3>
+                            </div>
+                            <button type="button" class="modal-close" id="closeInfoModal">✕</button>
+                        </div>
+                        <div class="info-modal-body" id="infoModalBody"></div>
+                    </div>
+                </div>
+
+                <div
+                    class="upload-zone"
+                    id="uploadZone"
+                >
+
+                    <div class="upload-icon">
+                        📦
+                    </div>
+
+                    <h3>
+                        Drop your project ZIP here
+                    </h3>
+
+                    <p>
+                        or choose a ZIP file from your computer
+                    </p>
+
+                    <button
+                        type="button"
+                        class="choose-button"
+                        id="chooseButton"
+                    >
+                        Select Project ZIP
+                    </button>
+
+                    <input
+                        type="file"
+                        id="projectInput"
+                        accept=".zip,application/zip"
+                        hidden
+                    >
+
+
+                    <div
+                        class="selected-file"
+                        id="selectedFile"
+                    >
+
+                        <span
+                            class="file-name"
+                            id="fileName"
+                        ></span>
+
+                        <button
+                            type="button"
+                            class="remove-file"
+                            id="removeFile"
+                        >
+                            ✕
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =========================================
+                     GENERATE
+                ========================================== -->
+
+                <div
+                    class="generate-container"
+                    id="generateContainer"
+                >
+
+                    <button
+                        type="button"
+                        class="generate-button"
+                        id="generateButton"
+                    >
+                        ✦ &nbsp; Generate Technical Design Document
+                    </button>
+
+                </div>
+
+
+                <!-- =========================================
+                     PROGRESS
+                ========================================== -->
+
+                <div
+                    class="progress-panel"
+                    id="progressPanel"
+                >
+
+                    <div class="progress-top">
+
+                        <span class="progress-label">
+                            Running Agentic TDD Pipeline
+                        </span>
+
+                        <span
+                            class="progress-status"
+                            id="progressStatus"
+                        >
+                            Preparing...
+                        </span>
+
+                    </div>
+
+                    <div class="progress-track">
+
+                        <div
+                            class="progress-bar"
+                            id="progressBar"
+                        ></div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =========================================
+                     RESULT
+                ========================================== -->
+
+                <div
+                    class="result"
+                    id="result"
+                >
+
+                    <div>
+
+                        <div class="result-title">
+                            ✓ TDD Generated Successfully
+                        </div>
+
+                        <div class="result-text">
+                            Your Technical Design Document
+                            has been generated and is ready.
+                        </div>
+
+                    </div>
+
+                    <button
+                        class="download-button"
+                        id="downloadButton"
+                    >
+                        Download TDD
+                    </button>
+
+                </div>
+
+
+            </section>
+
+
+            <!-- =============================================
+                 INFO BAR
+            ============================================== -->
+
+            <section class="info-bar">
+
+
+                <div class="info-item">
+
+                    <div class="info-icon">
+                        🛡
+                    </div>
+
+                    <div>
+
+                        <strong>
+                            Evidence Based
+                        </strong>
+
+                        <span>
+                            Generated from actual source-code evidence
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+                <div class="info-item">
+
+                    <div class="info-icon">
+                        ✦
+                    </div>
+
+                    <div>
+
+                        <strong>
+                            AI-Powered
+                        </strong>
+
+                        <span>
+                            RAG and multi-agent architecture analysis
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+                <div class="info-item">
+
+                    <div class="info-icon">
+                        ⚡
+                    </div>
+
+                    <div>
+
+                        <strong>
+                            Fast Processing
+                        </strong>
+
+                        <span>
+                            Automated analysis in minutes
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+                <div class="info-item">
+
+                    <div class="info-icon">
+                        ▤
+                    </div>
+
+                    <div>
+
+                        <strong>
+                            Export Ready
+                        </strong>
+
+                        <span>
+                            Download professional Markdown TDD
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+        </main>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     TOAST
+========================================================== -->
+
+<div
+    class="toast"
+    id="toast"
+></div>
+
+
+<!-- =========================================================
+     JAVASCRIPT
+========================================================== -->
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+const zipButton=$("zipButton"), singleFileButton=$("singleFileButton"), pasteCodeButton=$("pasteCodeButton");
+const uploadZone=$("uploadZone"), chooseButton=$("chooseButton"), projectInput=$("projectInput"), singleFileInput=$("singleFileInput");
+const selectedFile=$("selectedFile"), fileName=$("fileName"), removeFile=$("removeFile");
+const generateContainer=$("generateContainer"), generateButton=$("generateButton");
+const progressPanel=$("progressPanel"), progressBar=$("progressBar"), progressStatus=$("progressStatus");
+const result=$("result"), downloadButton=$("downloadButton"), toast=$("toast");
+const pasteModal=$("pasteModal"), closePasteModal=$("closePasteModal"), pasteTextarea=$("pasteTextarea");
+const pasteLanguage=$("pasteLanguage"), pasteFileName=$("pasteFileName"), usePastedCode=$("usePastedCode"), pasteCharCount=$("pasteCharCount");
+const infoModal=$("infoModal"), closeInfoModal=$("closeInfoModal"), infoModalTitle=$("infoModalTitle"), infoModalKicker=$("infoModalKicker"), infoModalBody=$("infoModalBody");
+
+let selectedProject=null, generatedBlob=null, selectedInputType="zip";
+
+function showToast(message){
+    toast.textContent=message; toast.classList.add("show");
+    setTimeout(()=>toast.classList.remove("show"),4000);
+}
+function resetResult(){ result.classList.remove("show"); generatedBlob=null; }
+
+zipButton.onclick=()=>{ uploadZone.classList.add("active"); projectInput.click(); };
+chooseButton.onclick=()=>projectInput.click();
+singleFileButton.onclick=()=>singleFileInput.click();
+
+projectInput.onchange=()=>{
+    const f=projectInput.files[0]; if(f) handleFile(f,"zip");
+};
+singleFileInput.onchange=()=>{
+    const f=singleFileInput.files[0]; if(f) handleFile(f,"single");
+};
+
+function handleFile(file,type){
+    if(type==="zip" && !file.name.toLowerCase().endsWith(".zip")){
+        showToast("Please select a valid ZIP file."); return;
+    }
+    selectedProject=file; selectedInputType=type;
+    fileName.textContent=file.name; selectedFile.classList.add("show");
+    generateContainer.classList.add("show"); uploadZone.classList.add("active"); resetResult();
+    showToast(type==="zip" ? "Project ZIP selected." : "Source file selected.");
+}
+
+removeFile.onclick=()=>{
+    selectedProject=null; projectInput.value=""; singleFileInput.value="";
+    selectedFile.classList.remove("show"); generateContainer.classList.remove("show"); resetResult();
+};
+
+uploadZone.ondragover=(e)=>{e.preventDefault();uploadZone.classList.add("dragover");};
+uploadZone.ondragleave=()=>uploadZone.classList.remove("dragover");
+uploadZone.ondrop=(e)=>{
+    e.preventDefault(); uploadZone.classList.remove("dragover");
+    const f=e.dataTransfer.files[0]; if(!f)return;
+    handleFile(f,f.name.toLowerCase().endsWith(".zip")?"zip":"single");
+};
+
+pasteCodeButton.onclick=()=>{pasteModal.classList.add("show");pasteTextarea.focus();};
+closePasteModal.onclick=()=>pasteModal.classList.remove("show");
+pasteModal.onclick=(e)=>{if(e.target===pasteModal)pasteModal.classList.remove("show");};
+pasteTextarea.oninput=()=>pasteCharCount.textContent=`${pasteTextarea.value.length.toLocaleString()} characters`;
+pasteLanguage.onchange=()=>pasteFileName.value=`source.${pasteLanguage.value}`;
+
+usePastedCode.onclick=()=>{
+    const code=pasteTextarea.value.trim();
+    if(!code){showToast("Please paste some source code first.");return;}
+    let name=(pasteFileName.value||`source.${pasteLanguage.value}`).trim().replace(/[^\w.-]/g,"_");
+    if(!name.includes(".")) name+=`.`+pasteLanguage.value;
+    selectedProject=new File([code],name,{type:"text/plain"});
+    selectedInputType="single"; fileName.textContent=name;
+    selectedFile.classList.add("show"); generateContainer.classList.add("show"); uploadZone.classList.add("active");
+    pasteModal.classList.remove("show"); resetResult(); showToast("Pasted code loaded.");
+};
+
+// Small browser-side ZIP writer for single-file/paste mode.
+// Flask continues receiving the same "project" ZIP field.
+async function fileToZip(file){
+    const data=new Uint8Array(await file.arrayBuffer());
+    const name=new TextEncoder().encode(file.name);
+    const table=new Uint32Array(256);
+    for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);table[n]=c>>>0;}
+    let crc=0xFFFFFFFF;
+    for(const b of data)crc=table[(crc^b)&255]^(crc>>>8);
+    crc=(crc^0xFFFFFFFF)>>>0;
+    const u16=v=>new Uint8Array([v&255,(v>>>8)&255]);
+    const u32=v=>new Uint8Array([v&255,(v>>>8)&255,(v>>>16)&255,(v>>>24)&255]);
+    const local=new Uint8Array(30+name.length);
+    local.set([80,75,3,4]);local.set(u16(20),4);local.set(u16(0),6);local.set(u16(0),8);
+    local.set(u16(0),10);local.set(u16(0),12);local.set(u32(crc),14);local.set(u32(data.length),18);
+    local.set(u32(data.length),22);local.set(u16(name.length),26);local.set(u16(0),28);local.set(name,30);
+    const central=new Uint8Array(46+name.length);
+    central.set([80,75,1,2]);central.set(u16(20),4);central.set(u16(20),6);central.set(u16(0),8);
+    central.set(u16(0),10);central.set(u16(0),12);central.set(u16(0),14);central.set(u32(crc),16);
+    central.set(u32(data.length),20);central.set(u32(data.length),24);central.set(u16(name.length),28);
+    central.set(u16(0),30);central.set(u16(0),32);central.set(u16(0),34);central.set(u16(0),36);
+    central.set(u32(0),38);central.set(u32(0),42);central.set(name,46);
+    const end=new Uint8Array(22);end.set([80,75,5,6]);end.set(u16(0),4);end.set(u16(0),6);
+    end.set(u16(1),8);end.set(u16(1),10);end.set(u32(central.length),12);end.set(u32(local.length+data.length),16);end.set(u16(0),20);
+    return new File([local,data,central,end],`${file.name.replace(/\.[^/.]+$/,"")||"source"}-upload.zip`,{type:"application/zip"});
+}
+
+generateButton.onclick=async()=>{
+    if(!selectedProject){showToast("Please select a project or source file first.");return;}
+    generateButton.disabled=true; progressPanel.classList.add("show"); result.classList.remove("show");
+    progressBar.style.width="8%";progressStatus.textContent="Preparing input...";
+    let p=8;
+    const timer=setInterval(()=>{
+        if(p<88){p=Math.min(88,p+Math.floor(Math.random()*7)+2);progressBar.style.width=p+"%";
+        progressStatus.textContent=p<25?"Reading source files...":p<43?"Running Scanner Agent...":p<58?"Creating semantic chunks...":p<73?"Retrieving context with RAG...":"Running Architect & Manager Agents...";}
+    },1200);
+    try{
+        let uploadFile=selectedProject;
+        if(selectedInputType==="single"){progressStatus.textContent="Packaging source file...";uploadFile=await fileToZip(selectedProject);}
+        const fd=new FormData();fd.append("project",uploadFile);
+        const response=await fetch("/generate",{method:"POST",body:fd});
+        clearInterval(timer);
+        if(!response.ok)throw new Error((await response.text())||"Pipeline generation failed.");
+        generatedBlob=await response.blob();
+        progressBar.style.width="100%";progressStatus.textContent="TDD generation completed!";
+        saveHistory(selectedProject.name,selectedInputType==="zip"?"Project ZIP":"Source File");
+        setTimeout(()=>{progressPanel.classList.remove("show");result.classList.add("show");},500);
+    }catch(err){clearInterval(timer);progressPanel.classList.remove("show");showToast("Pipeline failed: "+err.message);}
+    finally{generateButton.disabled=false;}
+};
+
+downloadButton.onclick=()=>{
+    if(!generatedBlob){showToast("No generated TDD available.");return;}
+    const url=URL.createObjectURL(generatedBlob),a=document.createElement("a");
+    a.href=url;a.download="technical_design_document.md";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+};
+
+// Functional sidebar
+document.querySelectorAll(".nav-item").forEach(item=>{
+    item.setAttribute("role","button");item.setAttribute("tabindex","0");
+    const label=item.textContent.trim();
+    item.onclick=()=>{
+        document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));item.classList.add("active");
+        if(label.includes("Home")) window.scrollTo({top:0,behavior:"smooth"});
+        if(label.includes("History")) openInfo("HISTORY","Generation History",historyHtml());
+        if(label.includes("Examples")) openInfo("EXAMPLES","Example Workflows",
+            "<h4>📦 Complete Project</h4><p>Upload a ZIP for multi-file semantic analysis.</p><h4>📄 Single File</h4><p>Select one supported source file for focused analysis.</p><h4>&lt;/&gt; Paste Code</h4><p>Paste code directly and generate a TDD.</p>");
+        if(label.includes("Documentation")) openInfo("DOCUMENTATION","How It Works",
+            "<h4>1. Scanner Agent</h4><p>Reads project source files and extracts evidence.</p><h4>2. Semantic RAG</h4><p>Creates chunks and retrieves relevant context.</p><h4>3. Architect Agent</h4><p>Builds architecture and functional requirements from evidence.</p><h4>4. Manager Agent</h4><p>Produces the final Technical Design Document.</p>");
+        if(label.includes("Settings")) openInfo("SETTINGS","Pipeline Settings",
+            "<h4>Input</h4><p>ZIP, single source file and pasted code are supported by this interface.</p><h4>Output</h4><p>The Flask backend returns technical_design_document.md.</p><h4>Pipeline</h4><p>Scanner → Semantic Chunking → RAG → Architect → Manager.</p>");
+    };
+    item.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();item.click();}};
+});
+
+function openInfo(kicker,title,body){infoModalKicker.textContent=kicker;infoModalTitle.textContent=title;infoModalBody.innerHTML=body;infoModal.classList.add("show");}
+closeInfoModal.onclick=()=>infoModal.classList.remove("show");
+infoModal.onclick=e=>{if(e.target===infoModal)infoModal.classList.remove("show");};
+
+function saveHistory(name,type){
+    const h=JSON.parse(localStorage.getItem("agenticTddHistory")||"[]");
+    h.unshift({name,type,time:new Date().toLocaleString()});
+    localStorage.setItem("agenticTddHistory",JSON.stringify(h.slice(0,20)));
+}
+function historyHtml(){
+    const h=JSON.parse(localStorage.getItem("agenticTddHistory")||"[]");
+    if(!h.length)return '<div class="history-empty">No generations yet.<br>Generate your first TDD to see it here.</div>';
+    return h.map(x=>`<div class="history-entry"><div><strong>✓ ${esc(x.name)}</strong><span>${esc(x.type)} · ${esc(x.time)}</span></div><span>Generated</span></div>`).join("");
+}
+function esc(v){return String(v).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");}
+document.onkeydown=e=>{if(e.key==="Escape"){pasteModal.classList.remove("show");infoModal.classList.remove("show");}};
+</script>
+
+</body>
+</html>
