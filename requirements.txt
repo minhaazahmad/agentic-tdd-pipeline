@@ -5,4 +5,4 @@ chromadb
 sentence-transformers
 pydantic
 python-dotenv
-langchain-groq
+langchain-groqgunicorn
