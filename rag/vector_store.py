@@ -1,122 +1,117 @@
-import shutil
-import uuid
-from pathlib import Path
+import re
 from typing import Any
-
-import chromadb
-from sentence_transformers import SentenceTransformer
 
 
 class CodeVectorStore:
     """
-    RAG vector store for project source code.
+    Lightweight RAG store for low-memory deployments.
 
-    A unique Chroma collection is created for every pipeline run.
-    This prevents:
-    - "Collection already exists" errors
-    - previous project data contamination
-    - conflicts when the Flask app processes multiple requests
+    Uses token-overlap scoring instead of SentenceTransformer + ChromaDB.
+    This keeps the Agentic TDD pipeline compatible with Render Free's
+    limited memory environment.
     """
 
     def __init__(
         self,
         persist_directory: str = "output/chroma_db",
-        model_name: str = "all-MiniLM-L6-v2",
+        model_name: str = "lightweight",
     ):
-        self.persist_directory = Path(persist_directory)
+        self.persist_directory = persist_directory
         self.model_name = model_name
 
-        print("Loading embedding model...")
+        self.documents = []
+        self.metadatas = []
 
-        self.embedding_model = SentenceTransformer(
-            model_name
+        print("Initializing lightweight retrieval store...")
+        print("Embedding model disabled for low-memory deployment.")
+
+    # ============================================================
+    # TOKENIZATION
+    # ============================================================
+
+    @staticmethod
+    def _tokenize(text: str):
+        text = str(text).lower()
+
+        # Keep programming identifiers useful.
+        tokens = re.findall(
+            r"[a-zA-Z_][a-zA-Z0-9_]*|[0-9]+",
+            text,
         )
 
-        # ---------------------------------------------------------
-        # Create persistent Chroma database
-        # ---------------------------------------------------------
+        # Remove extremely common/noisy words.
+        stop_words = {
+            "the",
+            "and",
+            "for",
+            "with",
+            "from",
+            "this",
+            "that",
+            "are",
+            "was",
+            "were",
+            "have",
+            "has",
+            "had",
+            "you",
+            "your",
+            "into",
+            "using",
+            "used",
+            "use",
+            "can",
+            "will",
+            "then",
+            "than",
+            "not",
+            "but",
+            "its",
+            "they",
+            "their",
+            "our",
+            "about",
+            "also",
+            "only",
+            "one",
+            "all",
+        }
 
-        self.persist_directory.mkdir(
-            parents=True,
-            exist_ok=True
-        )
-
-        self.client = chromadb.PersistentClient(
-            path=str(self.persist_directory)
-        )
-
-        # ---------------------------------------------------------
-        # IMPORTANT:
-        # Use a UNIQUE collection name for every run.
-        #
-        # This completely avoids:
-        # Collection [project_source] already exists
-        # ---------------------------------------------------------
-
-        unique_id = uuid.uuid4().hex[:12]
-
-        self.collection_name = (
-            f"project_source_{unique_id}"
-        )
-
-        self.collection = (
-            self.client.create_collection(
-                name=self.collection_name
-            )
-        )
-
-        print(
-            f"Chroma collection created: "
-            f"{self.collection_name}"
-        )
+        return {
+            token
+            for token in tokens
+            if len(token) >= 2
+            and token not in stop_words
+        }
 
     # ============================================================
     # ADD CHUNKS
     # ============================================================
 
-    def add_chunks(
-        self,
-        chunks: list[Any]
-    ):
+    def add_chunks(self, chunks: list[Any]):
         if not chunks:
             print("No chunks to store.")
             return
 
-        documents = []
-        metadatas = []
-        ids = []
-
-        # --------------------------------------------------------
-        # Prepare documents
-        # --------------------------------------------------------
+        self.documents = []
+        self.metadatas = []
 
         for index, chunk in enumerate(chunks):
 
-            # ----------------------------------------------------
-            # String chunk
-            # ----------------------------------------------------
-
             if isinstance(chunk, str):
-
                 text = chunk
-
                 metadata = {
                     "chunk_index": index
                 }
 
-            # ----------------------------------------------------
-            # Dictionary chunk
-            # ----------------------------------------------------
-
             elif isinstance(chunk, dict):
-
                 text = str(
                     chunk.get(
                         "text",
                         chunk.get(
                             "content",
-                            ""
-                        )
+                            "",
+                        ),
                     )
                 )
 
@@ -124,7 +119,6 @@ class CodeVectorStore:
                     "chunk_index": index
                 }
 
-                # Preserve useful metadata
                 for key in [
                     "file",
                     "filename",
@@ -133,23 +127,13 @@ class CodeVectorStore:
                     "start_line",
                     "end_line",
                 ]:
-
                     if key in chunk:
-
                         value = chunk[key]
 
                         if value is not None:
-
-                            metadata[key] = str(
-                                value
-                            )
-
-            # ----------------------------------------------------
-            # Generic object
-            # ----------------------------------------------------
+                            metadata[key] = str(value)
 
             else:
-
                 text = str(chunk)
 
                 metadata = {
@@ -161,58 +145,42 @@ class CodeVectorStore:
             if not text:
                 continue
 
-            documents.append(text)
-
-            metadatas.append(metadata)
-
-            ids.append(
-                f"chunk_{index}"
-            )
-
-        # --------------------------------------------------------
-        # Nothing readable
-        # --------------------------------------------------------
-
-        if not documents:
-
-            print(
-                "No readable chunks found."
-            )
-
-            return
-
-        # --------------------------------------------------------
-        # Generate embeddings
-        # --------------------------------------------------------
-
-        embeddings = (
-            self.embedding_model.encode(
-                documents,
-                show_progress_bar=False
-            )
-        )
-
-        # Convert NumPy arrays to normal lists
-        embeddings = [
-            vector.tolist()
-            for vector in embeddings
-        ]
-
-        # --------------------------------------------------------
-        # Store in Chroma
-        # --------------------------------------------------------
-
-        self.collection.add(
-            ids=ids,
-            documents=documents,
-            embeddings=embeddings,
-            metadatas=metadatas
-        )
+            self.documents.append(text)
+            self.metadatas.append(metadata)
 
         print(
-            f"Stored {len(documents)} "
-            "chunks in ChromaDB."
+            f"Stored {len(self.documents)} chunks "
+            "in lightweight retrieval store."
         )
+
+    # ============================================================
+    # SCORE
+    # ============================================================
+
+    def _score(self, query: str, document: str) -> float:
+
+        query_tokens = self._tokenize(query)
+        document_tokens = self._tokenize(document)
+
+        if not query_tokens or not document_tokens:
+            return 0.0
+
+        overlap = query_tokens.intersection(document_tokens)
+
+        if not overlap:
+            return 0.0
+
+        # Basic overlap score.
+        score = len(overlap) / len(query_tokens)
+
+        # Give a small bonus when exact query terms occur.
+        lower_document = document.lower()
+
+        for token in overlap:
+            if token in lower_document:
+                score += 0.01
+
+        return score
 
     # ============================================================
     # SEARCH
@@ -221,55 +189,48 @@ class CodeVectorStore:
     def search(
         self,
         query: str,
-        top_k: int = 3
+        top_k: int = 3,
     ):
-
         query = str(query).strip()
 
-        if not query:
+        if not query or not self.documents:
             return []
 
-        # --------------------------------------------------------
-        # Query embedding
-        # --------------------------------------------------------
+        scored = []
 
-        query_embedding = (
-            self.embedding_model.encode(
-                [query],
-                show_progress_bar=False
-            )[0]
-            .tolist()
-        )
+        for index, document in enumerate(self.documents):
 
-        # --------------------------------------------------------
-        # Chroma search
-        # --------------------------------------------------------
-
-        results = (
-            self.collection.query(
-                query_embeddings=[
-                    query_embedding
-                ],
-                n_results=top_k,
-                include=[
-                    "documents",
-                    "metadatas",
-                    "distances",
-                ]
+            score = self._score(
+                query,
+                document,
             )
+
+            if score > 0:
+                scored.append(
+                    (
+                        score,
+                        index,
+                        document,
+                    )
+                )
+
+        # Highest score first.
+        scored.sort(
+            key=lambda item: item[0],
+            reverse=True,
         )
 
-        documents = (
-            results.get(
-                "documents",
-                [[]]
-            )
-        )
+        results = [
+            item[2]
+            for item in scored[:top_k]
+        ]
 
-        if not documents:
-            return []
+        # If no lexical match exists, return the first chunks
+        # rather than returning an empty context.
+        if not results:
+            results = self.documents[:top_k]
 
-        return documents[0]
+        return results
 
     # ============================================================
     # SEARCH WITH METADATA
@@ -278,101 +239,44 @@ class CodeVectorStore:
     def search_with_metadata(
         self,
         query: str,
-        top_k: int = 3
+        top_k: int = 3,
     ):
-
         query = str(query).strip()
 
-        if not query:
+        if not query or not self.documents:
             return []
 
-        # --------------------------------------------------------
-        # Query embedding
-        # --------------------------------------------------------
+        scored = []
 
-        query_embedding = (
-            self.embedding_model.encode(
-                [query],
-                show_progress_bar=False
-            )[0]
-            .tolist()
-        )
+        for index, document in enumerate(self.documents):
 
-        # --------------------------------------------------------
-        # Chroma search
-        # --------------------------------------------------------
-
-        results = (
-            self.collection.query(
-                query_embeddings=[
-                    query_embedding
-                ],
-                n_results=top_k,
-                include=[
-                    "documents",
-                    "metadatas",
-                    "distances",
-                ]
+            score = self._score(
+                query,
+                document,
             )
-        )
 
-        documents = results.get(
-            "documents",
-            [[]]
-        )
+            scored.append(
+                (
+                    score,
+                    index,
+                    document,
+                )
+            )
 
-        metadatas = results.get(
-            "metadatas",
-            [[]]
+        scored.sort(
+            key=lambda item: item[0],
+            reverse=True,
         )
-
-        distances = results.get(
-            "distances",
-            [[]]
-        )
-
-        if not documents:
-            return []
 
         output = []
 
-        for index, document in enumerate(
-            documents[0]
-        ):
-
-            metadata = {}
-
-            if (
-                metadatas
-                and metadatas[0]
-                and index < len(
-                    metadatas[0]
-                )
-            ):
-
-                metadata = (
-                    metadatas[0][index]
-                )
-
-            distance = None
-
-            if (
-                distances
-                and distances[0]
-                and index < len(
-                    distances[0]
-                )
-            ):
-
-                distance = (
-                    distances[0][index]
-                )
+        for score, index, document in scored[:top_k]:
 
             output.append(
                 {
                     "text": document,
-                    "metadata": metadata,
-                    "distance": distance,
+                    "metadata": self.metadatas[index],
+                    "distance": 1.0 - score,
                 }
             )
 
@@ -383,37 +287,11 @@ class CodeVectorStore:
     # ============================================================
 
     def clear(self):
-
-        try:
-
-            self.client.delete_collection(
-                self.collection_name
-            )
-
-        except Exception as exc:
-
-            print(
-                "Warning: Could not delete "
-                "Chroma collection:"
-            )
-
-            print(exc)
-
-        # Create a new unique collection
-        self.collection_name = (
-            f"project_source_"
-            f"{uuid.uuid4().hex[:12]}"
-        )
-
-        self.collection = (
-            self.client.create_collection(
-                name=self.collection_name
-            )
-        )
+        self.documents = []
+        self.metadatas = []
 
         print(
-            f"New Chroma collection created: "
-            f"{self.collection_name}"
+            "Lightweight retrieval store cleared."
         )
 
 
@@ -425,47 +303,38 @@ if __name__ == "__main__":
 
     print()
     print("=" * 60)
-    print("CODE VECTOR STORE TEST")
+    print("LIGHTWEIGHT CODE VECTOR STORE TEST")
     print("=" * 60)
     print()
 
-    store = CodeVectorStore(
-        persist_directory="output/test_chroma_db",
-        model_name="all-MiniLM-L6-v2"
-    )
+    store = CodeVectorStore()
 
     test_chunks = [
-
         """
         FILE: lib/main.dart
 
         SonicSplit is a Flutter application
         for processing audio files.
         """,
-
         """
         FILE: pubspec.yaml
 
         The project uses Flutter packages
         for file selection and audio playback.
         """,
-
         """
         FILE: README.md
 
         SonicSplit allows users to split audio
         and play individual stems.
         """,
-
     ]
 
-    store.add_chunks(
-        test_chunks
-    )
+    store.add_chunks(test_chunks)
 
     results = store.search(
-        "audio splitting and playback",
-        top_k=3
+        "audio splitting playback",
+        top_k=3,
     )
 
     print()
@@ -473,17 +342,13 @@ if __name__ == "__main__":
 
     for index, result in enumerate(
         results,
-        start=1
+        start=1,
     ):
-
         print()
         print(f"[{index}]")
-
-        print(
-            result[:500]
-        )
+        print(result[:500])
 
     print()
     print(
-        "Vector store test completed."
+        "Lightweight vector store test completed."
     )
