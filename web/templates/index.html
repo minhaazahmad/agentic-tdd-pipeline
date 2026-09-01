@@ -2349,33 +2349,151 @@ async function fileToZip(file){
 }
 
 generateButton.onclick=async()=>{
-    if(!selectedProject){showToast("Please select a project or source file first.");return;}
-    generateButton.disabled=true; progressPanel.classList.add("show"); result.classList.remove("show");
-    progressBar.style.width="8%";progressStatus.textContent="Preparing input...";
+    if(!selectedProject){
+        showToast("Please select a project or source file first.");
+        return;
+    }
+
+    generateButton.disabled=true;
+    progressPanel.classList.add("show");
+    result.classList.remove("show");
+
+    progressBar.style.width="8%";
+    progressStatus.textContent="Preparing input...";
+
     let p=8;
+
     const timer=setInterval(()=>{
-        if(p<88){p=Math.min(88,p+Math.floor(Math.random()*7)+2);progressBar.style.width=p+"%";
-        progressStatus.textContent=p<25?"Reading source files...":p<43?"Running Scanner Agent...":p<58?"Creating semantic chunks...":p<73?"Retrieving context with RAG...":"Running Architect & Manager Agents...";}
+        if(p<88){
+            p=Math.min(88,p+Math.floor(Math.random()*7)+2);
+            progressBar.style.width=p+"%";
+
+            progressStatus.textContent=
+                p<25
+                ?"Reading source files..."
+                :p<43
+                ?"Running Scanner Agent..."
+                :p<58
+                ?"Creating semantic chunks..."
+                :p<73
+                ?"Retrieving context with RAG..."
+                :"Running Architect & Manager Agents...";
+        }
     },1200);
+
     try{
         let uploadFile=selectedProject;
-        if(selectedInputType==="single"){progressStatus.textContent="Packaging source file...";uploadFile=await fileToZip(selectedProject);}
-        const fd=new FormData();fd.append("project",uploadFile);
-        const response=await fetch("/generate",{method:"POST",body:fd});
+
+        if(selectedInputType==="single"){
+            progressStatus.textContent="Packaging source file...";
+            uploadFile=await fileToZip(selectedProject);
+        }
+
+        const fd=new FormData();
+        fd.append("project",uploadFile);
+
+        const response=await fetch("/generate",{
+            method:"POST",
+            body:fd
+        });
+
         clearInterval(timer);
-        if(!response.ok)throw new Error((await response.text())||"Pipeline generation failed.");
-        generatedBlob=await response.blob();
-        progressBar.style.width="100%";progressStatus.textContent="TDD generation completed!";
-        saveHistory(selectedProject.name,selectedInputType==="zip"?"Project ZIP":"Source File");
-        setTimeout(()=>{progressPanel.classList.remove("show");result.classList.add("show");},500);
-    }catch(err){clearInterval(timer);progressPanel.classList.remove("show");showToast("Pipeline failed: "+err.message);}
-    finally{generateButton.disabled=false;}
+
+        /*
+         * The Flask /generate endpoint returns JSON metadata.
+         * The generated Markdown file is downloaded separately
+         * from /download/latest.
+         */
+        let data;
+
+        try{
+            data=await response.json();
+        }catch(e){
+            throw new Error("Server returned an invalid response.");
+        }
+
+        if(!response.ok || !data.success){
+            throw new Error(
+                data.error ||
+                data.message ||
+                "Pipeline generation failed."
+            );
+        }
+
+        /*
+         * Do not treat the JSON response as the Markdown file.
+         * The actual TDD is available at /download/latest.
+         */
+        generatedBlob=null;
+        window.latestTddResult=data;
+
+        progressBar.style.width="100%";
+        progressStatus.textContent="TDD generation completed!";
+
+        saveHistory(
+            selectedProject.name,
+            selectedInputType==="zip" ? "Project ZIP" : "Source File"
+        );
+
+        setTimeout(()=>{
+            progressPanel.classList.remove("show");
+            result.classList.add("show");
+        },500);
+
+    }catch(err){
+        clearInterval(timer);
+        progressPanel.classList.remove("show");
+        showToast("Pipeline failed: "+err.message);
+    }finally{
+        generateButton.disabled=false;
+    }
 };
 
-downloadButton.onclick=()=>{
-    if(!generatedBlob){showToast("No generated TDD available.");return;}
-    const url=URL.createObjectURL(generatedBlob),a=document.createElement("a");
-    a.href=url;a.download="technical_design_document.md";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+downloadButton.onclick=async()=>{
+    try{
+        /*
+         * Fetch the actual generated Markdown file from Flask.
+         */
+        const response=await fetch("/download/latest",{
+            method:"GET"
+        });
+
+        if(!response.ok){
+            let message="Unable to download generated TDD.";
+
+            try{
+                const data=await response.json();
+                message=data.error || message;
+            }catch(e){}
+
+            throw new Error(message);
+        }
+
+        const blob=await response.blob();
+
+        if(!blob || blob.size===0){
+            throw new Error("Generated TDD file is empty.");
+        }
+
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement("a");
+
+        a.href=url;
+        a.download="technical_design_document.md";
+
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        setTimeout(()=>{
+            URL.revokeObjectURL(url);
+        },1000);
+
+        showToast("Technical Design Document downloaded.");
+
+    }catch(err){
+        showToast("Download failed: "+err.message);
+    }
 };
 
 // Functional sidebar
