@@ -1,415 +1,190 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, jsonify, render_template, request, send_file
 from pathlib import Path
-import zipfile
+from werkzeug.utils import secure_filename
+import json
 import shutil
+import tempfile
+import time
+import zipfile
 
-from pipeline import run_pipeline
+from pipeline import run_pipeline, safe_extract_zip
 
-
-# ============================================================
-# FLASK APPLICATION
-# ============================================================
-
-app = Flask(
-    __name__,
-    template_folder="web/templates",
-    static_folder="web/static"
-)
-
-
-# ============================================================
-# DIRECTORIES
-# ============================================================
+app = Flask(__name__, template_folder="web/templates", static_folder="web/static")
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
 
 BASE_DIR = Path(__file__).resolve().parent
-
 UPLOAD_DIR = BASE_DIR / "uploads"
-PROJECT_DIR = BASE_DIR / "uploaded_project"
 OUTPUT_DIR = BASE_DIR / "output"
+HISTORY_DIR = OUTPUT_DIR / "history"
+HISTORY_FILE = OUTPUT_DIR / "history.json"
 
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+for folder in (UPLOAD_DIR, OUTPUT_DIR, HISTORY_DIR):
+    folder.mkdir(parents=True, exist_ok=True)
 
-
-# ============================================================
-# SUPPORTED SOURCE FILES
-# ============================================================
-
-SUPPORTED_EXTENSIONS = {
-    ".py",
-    ".js",
-    ".jsx",
-    ".ts",
-    ".tsx",
-    ".java",
-    ".cpp",
-    ".c",
-    ".h",
-    ".hpp",
-    ".cs",
-    ".go",
-    ".rs",
-    ".php",
-    ".rb",
-    ".kt",
-    ".kts",
-    ".swift",
-    ".dart",
-    ".html",
-    ".htm",
-    ".css",
-    ".scss",
-    ".sql",
-    ".yaml",
-    ".yml",
-    ".json",
-    ".xml",
+ALLOWED_EXTENSIONS = {
+    ".py", ".dart", ".js", ".jsx", ".ts", ".tsx", ".java", ".kt", ".kts",
+    ".cpp", ".cc", ".cxx", ".c", ".h", ".hpp", ".cs", ".go", ".rs", ".php",
+    ".rb", ".swift", ".html", ".css", ".scss", ".sql", ".json", ".yaml",
+    ".yml", ".xml", ".md", ".txt",
 }
 
 
-# ============================================================
-# HOME PAGE
-# ============================================================
+def load_history():
+    try:
+        data = json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def save_history(items):
+    temp = HISTORY_FILE.with_suffix(".tmp")
+    temp.write_text(
+        json.dumps(items[:50], indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    temp.replace(HISTORY_FILE)
+
+
+def add_history_entry(name, mode, output_file):
+    safe_base = secure_filename(Path(name or "tdd").stem) or "tdd"
+    filename = f"{int(time.time() * 1000)}_{safe_base}_technical_design_document.md"
+    destination = HISTORY_DIR / filename
+    shutil.copy2(output_file, destination)
+
+    entry = {
+        "id": str(int(time.time() * 1000)),
+        "name": name or "Unknown project",
+        "mode": mode,
+        "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "filename": filename,
+        "download_url": f"/history/download/{filename}",
+    }
+    items = load_history()
+    items.insert(0, entry)
+    save_history(items)
+    return entry
+
 
 @app.route("/")
 def home():
     return render_template("index.html")
 
 
-# ============================================================
-# FIND PROJECT ROOT
-# ============================================================
-
-def find_project_root(extracted_dir: Path) -> Path:
-    """
-    Detect the actual project root inside the extracted ZIP.
-
-    Example:
-
-        uploaded_project/
-            SonicSplit-AI-main/
-                lib/
-                android/
-                ios/
-                pubspec.yaml
-
-    In this case SonicSplit-AI-main becomes the project root.
-    """
-
-    # First check whether the extracted directory itself
-    # contains source files.
-    direct_files = [
-        p for p in extracted_dir.iterdir()
-        if p.is_file()
-        and p.suffix.lower() in SUPPORTED_EXTENSIONS
-    ]
-
-    if direct_files:
-        return extracted_dir
-
-    # Look for a single top-level directory.
-    directories = [
-        p for p in extracted_dir.iterdir()
-        if p.is_dir()
-        and p.name not in {
-            "__MACOSX",
-            ".git",
-            "__pycache__"
-        }
-    ]
-
-    if len(directories) == 1:
-        return directories[0]
-
-    # Otherwise use the extracted directory.
-    return extracted_dir
+@app.route("/health")
+def health():
+    return jsonify({
+        "status": "ok",
+        "service": "Agentic TDD Generator",
+        "version": "2.0-evidence-gated",
+    })
 
 
-# ============================================================
-# COLLECT PROJECT FILES
-# ============================================================
-
-def collect_source_files(project_root: Path):
-    """
-    Collect all supported source/configuration files
-    from the uploaded project.
-    """
-
-    files = []
-
-    for path in project_root.rglob("*"):
-
-        if not path.is_file():
-            continue
-
-        # Ignore generated/cache folders.
-        parts_lower = {
-            part.lower()
-            for part in path.parts
-        }
-
-        ignored_directories = {
-            ".git",
-            "__pycache__",
-            ".dart_tool",
-            "build",
-            ".gradle",
-            "node_modules",
-            ".idea",
-            ".vscode",
-        }
-
-        if parts_lower.intersection(ignored_directories):
-            continue
-
-        if path.suffix.lower() in SUPPORTED_EXTENSIONS:
-            files.append(path)
-
-    return sorted(files)
+@app.route("/api/history")
+def api_history():
+    return jsonify(load_history())
 
 
-# ============================================================
-# GENERATE TDD
-# ============================================================
+@app.route("/history/download/<path:filename>")
+def history_download(filename):
+    safe_name = Path(filename).name
+    path = HISTORY_DIR / safe_name
+    if not path.is_file():
+        return jsonify({"error": "History document not found."}), 404
+    return send_file(path, as_attachment=True, download_name="technical_design_document.md")
+
+
+@app.route("/download/latest")
+def download_latest():
+    path = OUTPUT_DIR / "technical_design_document.md"
+    if not path.is_file():
+        return jsonify({"error": "No generated TDD available."}), 404
+    return send_file(path, as_attachment=True, download_name="technical_design_document.md")
+
 
 @app.route("/generate", methods=["POST"])
 def generate():
-
-    print()
-    print("=" * 60)
-    print("                 PROJECT UPLOAD")
-    print("=" * 60)
-
-    # --------------------------------------------------------
-    # Check uploaded file
-    # --------------------------------------------------------
-
-    if "project" not in request.files:
-        return "No project file uploaded.", 400
-
-    uploaded_file = request.files["project"]
-
-    if uploaded_file.filename == "":
-        return "No file selected.", 400
-
-    filename = uploaded_file.filename
-
-    if not filename.lower().endswith(".zip"):
-        return "Please upload a ZIP file.", 400
-
-    # --------------------------------------------------------
-    # Clean previous project
-    # --------------------------------------------------------
-
-    if PROJECT_DIR.exists():
-        try:
-            shutil.rmtree(PROJECT_DIR)
-        except Exception as exc:
-            print("Could not remove old project:", exc)
-            return "Could not clean previous uploaded project.", 500
-
-    PROJECT_DIR.mkdir(parents=True, exist_ok=True)
-
-    # --------------------------------------------------------
-    # Clean old ZIP files
-    # --------------------------------------------------------
-
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-
-    for old_file in UPLOAD_DIR.iterdir():
-        if old_file.is_file():
-            try:
-                old_file.unlink()
-            except Exception:
-                pass
-
-    # --------------------------------------------------------
-    # Save uploaded ZIP
-    # --------------------------------------------------------
-
-    zip_path = UPLOAD_DIR / Path(filename).name
+    mode = request.form.get("mode", "zip")
+    temp_root = None
 
     try:
-        uploaded_file.save(zip_path)
-    except Exception as exc:
-        print("Upload save error:", exc)
-        return "Could not save uploaded ZIP file.", 500
+        if mode == "zip":
+            file = request.files.get("project")
+            if not file or not file.filename:
+                return jsonify({"error": "No project ZIP uploaded."}), 400
+            if Path(file.filename).suffix.lower() != ".zip":
+                return jsonify({"error": "Please upload a ZIP file."}), 400
 
-    print("ZIP file:", zip_path)
+            temp_root = Path(tempfile.mkdtemp(prefix="agentic_tdd_web_"))
+            zip_path = temp_root / (secure_filename(file.filename) or "project.zip")
+            file.save(zip_path)
 
-    # --------------------------------------------------------
-    # Extract ZIP
-    # --------------------------------------------------------
+            project_dir = temp_root / "project"
+            safe_extract_zip(zip_path, project_dir)
+            result = run_pipeline(project_dir)
+            history = add_history_entry(project_dir.name, "Project ZIP", result["output_file"])
 
-    try:
+        elif mode in {"file", "code"}:
+            if mode == "file":
+                file = request.files.get("source")
+                if not file or not file.filename:
+                    return jsonify({"error": "No source file uploaded."}), 400
+                filename = secure_filename(file.filename) or "source.py"
+                extension = Path(filename).suffix.lower()
+                if extension not in ALLOWED_EXTENSIONS:
+                    return jsonify({"error": f"Unsupported source type: {extension or 'unknown'}"}), 400
+                content = file.read()
+                if len(content) > 10 * 1024 * 1024:
+                    return jsonify({"error": "Source file is too large."}), 413
+            else:
+                filename = secure_filename(request.form.get("filename", "pasted_code.py")) or "pasted_code.py"
+                if Path(filename).suffix.lower() not in ALLOWED_EXTENSIONS:
+                    filename = "pasted_code.py"
+                content = request.form.get("code", "").encode("utf-8")
+                if not content.strip():
+                    return jsonify({"error": "Please paste source code first."}), 400
+                if len(content) > 5 * 1024 * 1024:
+                    return jsonify({"error": "Pasted source is too large."}), 413
 
-        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            temp_root = Path(tempfile.mkdtemp(prefix="agentic_tdd_source_"))
+            source_path = temp_root / filename
+            source_path.write_bytes(content)
+            result = run_pipeline(source_path)
+            history = add_history_entry(filename, "Single File" if mode == "file" else "Paste Code", result["output_file"])
 
-            # Basic ZIP path safety check.
-            for member in zip_ref.infolist():
+        else:
+            return jsonify({"error": "Unsupported input mode."}), 400
 
-                member_path = PROJECT_DIR / member.filename
-
-                try:
-                    member_path.resolve().relative_to(
-                        PROJECT_DIR.resolve()
-                    )
-                except ValueError:
-                    return "Unsafe ZIP file detected.", 400
-
-            zip_ref.extractall(PROJECT_DIR)
+        return jsonify({
+            "success": True,
+            "message": "TDD generated successfully.",
+            "download_url": "/download/latest",
+            "quality": result.get("quality", {}),
+            "stats": {
+                "files": result["file_count"],
+                "chunks": result["chunk_count"],
+                "evidence": result["rag_count"],
+            },
+            "history": history,
+        })
 
     except zipfile.BadZipFile:
-        return "Invalid ZIP file.", 400
-
+        return jsonify({"error": "Invalid or corrupted ZIP file."}), 400
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     except Exception as exc:
-        print("ZIP extraction error:", exc)
-        return f"Could not extract ZIP: {exc}", 500
-
-    # --------------------------------------------------------
-    # Detect actual project root
-    # --------------------------------------------------------
-
-    project_root = find_project_root(PROJECT_DIR)
-
-    print("Project root:", project_root)
-
-    # --------------------------------------------------------
-    # Collect all supported files
-    # --------------------------------------------------------
-
-    source_files = collect_source_files(project_root)
-
-    print("Supported source files:", len(source_files))
-
-    if not source_files:
-        return (
-            "No supported source-code files found inside the project."
-        ), 400
-
-    # --------------------------------------------------------
-    # Display discovered files
-    # --------------------------------------------------------
-
-    print()
-    print("PROJECT FILES")
-    print("-" * 60)
-
-    for index, source_file in enumerate(source_files, start=1):
-
-        try:
-            relative_path = source_file.relative_to(project_root)
-        except ValueError:
-            relative_path = source_file
-
-        print(
-            f"[{index:03d}] {relative_path}"
-        )
-
-    print("-" * 60)
-    print(
-        f"Total supported files: {len(source_files)}"
-    )
-    print()
-
-    # --------------------------------------------------------
-    # IMPORTANT
-    # --------------------------------------------------------
-    #
-    # Pass the PROJECT ROOT to the pipeline.
-    #
-    # Do NOT pass source_files[0].
-    #
-    # The pipeline is designed to analyze the project context.
-    # --------------------------------------------------------
-
-    try:
-
-        print("=" * 60)
-        print("              STARTING TDD PIPELINE")
-        print("=" * 60)
-        print()
-
-        output_file = run_pipeline(project_root)
-
-    except Exception as exc:
-
-        print()
-        print("=" * 60)
-        print("                 PIPELINE ERROR")
-        print("=" * 60)
-        print(exc)
-        print()
-
-        return f"Pipeline failed: {exc}", 500
-
-    # --------------------------------------------------------
-    # Locate generated TDD
-    # --------------------------------------------------------
-
-    if output_file is None:
-        return (
-            "Pipeline completed but did not return an output file."
-        ), 500
-
-    output_path = Path(output_file)
-
-    if not output_path.is_absolute():
-        output_path = BASE_DIR / output_path
-
-    # --------------------------------------------------------
-    # Fallback to standard output location
-    # --------------------------------------------------------
-
-    if not output_path.exists():
-
-        fallback_file = (
-            OUTPUT_DIR /
-            "technical_design_document.md"
-        )
-
-        if fallback_file.exists():
-            output_path = fallback_file
-
-    # --------------------------------------------------------
-    # Final check
-    # --------------------------------------------------------
-
-    if not output_path.exists():
-
-        return (
-            "TDD generation completed, "
-            "but the generated document was not found."
-        ), 500
-
-    # --------------------------------------------------------
-    # Send TDD to browser
-    # --------------------------------------------------------
-
-    print()
-    print("=" * 60)
-    print("             TDD GENERATION COMPLETED")
-    print("=" * 60)
-
-    print("TDD file:", output_path)
-    print()
-
-    return send_file(
-        output_path,
-        as_attachment=True,
-        download_name="technical_design_document.md",
-        mimetype="text/markdown"
-    )
+        app.logger.exception("Pipeline request failed")
+        return jsonify({"error": f"Pipeline failed: {type(exc).__name__}: {exc}"}), 500
+    finally:
+        if temp_root:
+            shutil.rmtree(temp_root, ignore_errors=True)
 
 
-# ============================================================
-# APPLICATION ENTRY POINT
-# ============================================================
+@app.route("/api/clear-history", methods=["POST"])
+def clear_history():
+    save_history([])
+    return jsonify({"success": True})
+
 
 if __name__ == "__main__":
-
-    app.run(
-        host="127.0.0.1",
-        port=5000,
-        debug=True
-    )
+    app.run(host="127.0.0.1", port=5000, debug=True)

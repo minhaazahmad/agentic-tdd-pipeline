@@ -1,8 +1,5 @@
-langchain
-langchain-community
-langchain-text-splitters
-pydantic
-python-dotenv
-langchain-groq
 Flask
 gunicorn
+python-dotenv
+langchain-groq
+pytest
