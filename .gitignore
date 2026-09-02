@@ -8,4 +8,7 @@ uploaded_project/
 output/history/
 output/rag_store/
 output/chroma_db/
+output/generation_manifest.jsonoutput/history.json
+output/technical_design_document.md
 output/generation_manifest.json
+output/

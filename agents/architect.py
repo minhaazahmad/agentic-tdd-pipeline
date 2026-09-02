@@ -61,10 +61,15 @@ class ArchitectAgent:
                     api_key=api_key,
                     model=os.getenv(
                         "GROQ_MODEL",
-                        "llama-3.1-8b-instant",
+                        "openai/gpt-oss-20b",
                     ),
                     temperature=0,
-                    max_tokens=3000,
+                    max_tokens=4000,
+                    model_kwargs={
+                        "response_format": {
+                            "type": "json_object"
+                        }
+                    },
                 )
             except Exception as exc:
                 print(
@@ -395,13 +400,29 @@ class ArchitectAgent:
         seen_ids = set()
         seen_paths = set()
 
+        internal_files = {
+            "agents/architect.py",
+            "agents/manager.py",
+            "agents/critic.py",
+            "pipeline.py",
+            "scanner.py",
+            "vector_store.py",
+            "chunker.py",
+        }
+
         # First pass: application implementation.
         for item in ranked:
             if cls._is_platform_boilerplate(item):
                 continue
 
+            path = cls._path(item).lower().replace("\\", "/")
+
+            # Never use the TDD pipeline's own implementation
+            # as evidence for the target project's architecture.
+            if path in internal_files:
+                continue
+
             evidence_id = cls._id(item)
-            path = cls._path(item)
 
             if not evidence_id:
                 continue
@@ -431,7 +452,7 @@ class ArchitectAgent:
     def _build_context(
         cls,
         evidence: list[dict[str, Any]],
-        max_chars: int = 8500,
+        max_chars: int = 4200,
     ) -> str:
         selected = cls._select_evidence(
             evidence,
@@ -461,7 +482,7 @@ class ArchitectAgent:
             # reject the request because of TPM/token limits.
             snippet = text[
                 : min(
-                    1100,
+                    650,
                     remaining,
                 )
             ]
@@ -1467,48 +1488,194 @@ PROJECT:
 {filename}
 
 Your job is to create a technically accurate blueprint
-using ONLY the supplied source evidence.
+using ONLY the supplied SOURCE EVIDENCE.
 
-STRICT RULES:
+============================================================
+ABSOLUTE EVIDENCE PROVENANCE RULES
+============================================================
 
-1. Never invent implementation details.
-2. Never invent evidence IDs.
-3. Only cite IDs from ALLOWED EVIDENCE IDS.
-4. Every concrete implementation claim should have [EV-ID].
-5. Unsupported information MUST be:
+1. SOURCE EVIDENCE IS THE ONLY SOURCE OF TRUTH.
+
+2. Every factual or implementation-specific statement MUST
+   end with one or more valid evidence citations in this form:
+
+   [EV-XXXXXXXX]
+
+3. A citation is valid ONLY if its exact ID appears in:
+
+   ALLOWED EVIDENCE IDS
+
+4. NEVER invent an evidence ID.
+
+5. NEVER modify an evidence ID.
+
+6. NEVER cite an ID that is not in ALLOWED EVIDENCE IDS.
+
+7. If a statement cannot be directly supported by the supplied
+   SOURCE EVIDENCE, output exactly:
+
    "{NOT_DETERMINED}"
-6. Android/iOS/Linux/Windows/macOS generated runner files
-   are platform scaffolding unless they clearly contain
-   application-specific logic.
-7. Never use platform scaffolding as proof of application
-   business architecture.
-8. Prefer real application source files.
-9. README/documentation represents documented or intended
-   behavior. It does not automatically prove implementation.
-10. If README claims a backend/model/API exists but source
-    evidence does not show it, do not state that it is
-    implemented.
-11. Do not infer GPU, CUDA, FastAPI, Demucs, native ML,
-    database, authentication, cloud infrastructure or
-    external services without direct evidence.
-12. Do not invent API endpoints.
-13. Do not invent data stores.
-14. Do not invent performance metrics.
-15. Do not convert dependency names into architecture claims
-    unless the source shows their actual use.
-16. Keep the output concise.
-17. Return ONLY valid JSON.
-18. Do not use Markdown fences.
-19. Complete the entire JSON object.
-20. Do not put commentary outside JSON.
 
-ALLOWED EVIDENCE IDS:
+8. Do NOT use general programming knowledge to fill missing
+   implementation details.
+
+9. Do NOT infer implementation from filenames alone.
+
+10. Do NOT infer implementation from dependency names alone.
+
+11. README/documentation describes documented or intended
+    behavior. It does NOT prove implementation unless the
+    source evidence also demonstrates the implementation.
+
+12. If requirements.txt lists a dependency, you may state that
+    it is a PROJECT DEPENDENCY only when citing the
+    requirements.txt evidence. Do not claim that the dependency
+    is actually used unless source code directly demonstrates
+    its use.
+
+13. If source code demonstrates a class, function, workflow,
+    API, database, authentication mechanism, configuration
+    behavior, testing behavior, deployment behavior or other
+    implementation detail, cite the exact evidence containing
+    that implementation.
+
+14. Do NOT infer GPU, CUDA, FastAPI, Demucs, native ML,
+    PostgreSQL, authentication, cloud infrastructure,
+    external services, API endpoints, data stores or performance
+    characteristics unless directly demonstrated by evidence.
+
+15. Platform runner/scaffolding files must not be used as proof
+    of application business architecture unless they clearly
+    contain application-specific logic.
+
+16. Prefer application source evidence over documentation.
+
+17. If multiple evidence IDs directly support a statement,
+    cite all relevant IDs.
+
+18. NEVER write a factual statement without a citation.
+
+============================================================
+FIELD-SPECIFIC RULES
+============================================================
+
+For every item in:
+
+- project_scope
+- architecture.components
+- architecture.component_responsibilities
+- architecture.data_flow
+- architecture.dependencies
+- functional_requirements
+- non_functional_requirements
+- technical_details
+- api_design
+- data_storage
+- error_handling
+- security
+- configuration
+- testing_strategy
+- deployment
+- performance
+- limitations
+- source_files_of_interest
+- evidence_notes
+
+the item MUST either:
+
+A) contain one or more valid [EV-ID] citations,
+
+OR
+
+B) be exactly:
+
+"{NOT_DETERMINED}"
+
+Examples:
+
+GOOD:
+"Flask provides the web application framework. [EV-REQUIREMENTS-TXT-1-5-79-6FEE9D48DE]"
+
+GOOD:
+"ManagerAgent enriches the blueprint with additional evidence sections. [EV-AGENTS-MANAGER-PY-1-180-23-BCCB32C9E7]"
+
+GOOD:
+"The project contains pytest-based testing. [EV-REQUIREMENTS-TXT-1-5-79-6FEE9D48DE]"
+
+BAD:
+"Flask is used for REST APIs."
+
+Reason: no evidence citation.
+
+BAD:
+"PostgreSQL is used."
+
+Reason: unsupported unless directly demonstrated.
+
+GOOD:
+"{NOT_DETERMINED}"
+
+when the evidence does not directly establish the claim.
+
+============================================================
+IMPORTANT DISTINCTION
+============================================================
+
+Do not confuse:
+
+- "dependency exists"
+with
+- "dependency is used"
+
+Do not confuse:
+
+- "README says feature exists"
+with
+- "source code implements feature"
+
+Do not confuse:
+
+- "filename suggests functionality"
+with
+- "source evidence proves functionality"
+
+Only state what the evidence proves.
+
+============================================================
+ALLOWED EVIDENCE IDS
+============================================================
+
 {allowed_ids}
 
-SOURCE EVIDENCE:
+============================================================
+SOURCE EVIDENCE
+============================================================
+
 {context}
 
-Return EXACTLY this JSON structure:
+============================================================
+OUTPUT REQUIREMENTS
+============================================================
+
+Return ONLY valid JSON.
+
+Do NOT use Markdown fences.
+
+Do NOT write commentary outside JSON.
+
+Complete the entire JSON object.
+
+Keep the response compact.
+
+Use at most 3 items in each array.
+
+Keep each array item concise, preferably under 160 characters.
+
+Do not repeat the same evidence citation unnecessarily.
+
+For unsupported fields, use exactly "{NOT_DETERMINED}" instead of explaining why.
+
+Use exactly this JSON structure:
 
 {{
   "document_title": "string",
@@ -1557,7 +1724,7 @@ Return EXACTLY this JSON structure:
 
         context = self._build_context(
             relevant_chunks,
-            max_chars=8500,
+            max_chars=4200,
         )
 
         # ========================================================
@@ -1598,13 +1765,27 @@ Return EXACTLY this JSON structure:
                 prompt
             )
 
-            content = str(
-                getattr(
-                    response,
-                    "content",
-                    response,
-                )
-            )
+            content = getattr(response, "content", response)
+
+            if isinstance(content, list):
+                parts = []
+
+                for block in content:
+                    if isinstance(block, str):
+                        parts.append(block)
+                    elif isinstance(block, dict):
+                        value = block.get("text", block.get("content"))
+                        if value is not None:
+                            parts.append(str(value))
+                    else:
+                        parts.append(str(block))
+
+                content = "".join(parts)
+            else:
+                content = str(content)
+
+            if not content.strip():
+                raise ValueError("Architect returned an empty LLM response.")
 
             parsed = self._parse_json(
                 content

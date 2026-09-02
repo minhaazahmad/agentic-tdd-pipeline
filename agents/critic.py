@@ -170,12 +170,23 @@ class CriticAgent:
                     api_key=api_key,
                     model=os.getenv(
                         "GROQ_MODEL",
-                        "llama-3.1-8b-instant",
+                        "openai/gpt-oss-20b",
                     ),
                     temperature=0,
-                    max_tokens=1800,
+                    max_tokens=1200,
+                    reasoning_effort="low",
+                    reasoning_format="hidden",
+                    model_kwargs={
+                        "response_format": {
+                            "type": "json_object"
+                        }
+                    },
                 )
-            except Exception:
+            except Exception as exc:
+                print(
+                    "Critic LLM initialization failed: "
+                    f"{type(exc).__name__}: {exc}"
+                )
                 self.llm = None
 
     # ============================================================
@@ -1171,7 +1182,7 @@ class CriticAgent:
         # This prevents TPM errors on free Groq tiers.
         compact_evidence = []
 
-        for item in evidence[:10]:
+        for item in evidence[:8]:
 
             evidence_id = str(
                 item.get(
@@ -1197,7 +1208,7 @@ class CriticAgent:
                     + "\n"
                     + self._evidence_text(
                         item
-                    )[:450]
+                    )[:300]
                 )
             )
 
@@ -1210,7 +1221,7 @@ class CriticAgent:
         compact_blueprint = json.dumps(
             blueprint,
             ensure_ascii=False,
-        )[:6000]
+        )[:3500]
 
         prompt = f"""
 You are a strict software architecture reviewer.
@@ -1316,6 +1327,12 @@ EVIDENCE:
             }
 
         except Exception as exc:
+            
+            print(
+               "CRITIC LLM ERROR:",
+               type(exc).__name__,
+               str(exc),
+            )
 
             return {
                 "enabled": True,

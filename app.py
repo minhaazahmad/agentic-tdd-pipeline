@@ -10,7 +10,7 @@ import zipfile
 from pipeline import run_pipeline, safe_extract_zip
 
 app = Flask(__name__, template_folder="web/templates", static_folder="web/static")
-app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "uploads"
